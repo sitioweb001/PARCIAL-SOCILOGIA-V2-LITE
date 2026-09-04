@@ -805,6 +805,14 @@
     <!-- EXÁMENES -->
     <section class="section-card fade-in" id="pub-examenes">
       <div class="section-header"><div><h2>Exámenes disponibles</h2><p>Pon a prueba lo aprendido en los 5 módulos. Cada examen solo se puede realizar una vez. Para repetirlo, se necesita la contraseña (747).</p></div></div>
+
+      <div id="tarjeta-autoevaluacion" style="text-align:center;max-width:640px;margin:0 auto 28px;padding:22px 24px;border:1px solid #e3e6f6;border-radius:14px;background:#f1f3fc;">
+        <h3 style="margin-bottom:6px;"><i class="fa-solid fa-clipboard-question"></i> Autoevaluación</h3>
+        <p style="color:#4b5170;font-size:0.9rem;margin-bottom:14px;">10 preguntas de reflexión personal (Sí / No / Tal vez / Prefiero no responder). No es calificada, pero tus respuestas se incluyen en tu certificado.</p>
+        <button class="btn btn-primary" onclick="abrirAutoevaluacion()"><i class="fa-solid fa-clipboard-question"></i> <span id="btn-autoeval-texto">Iniciar autoevaluación</span></button>
+        <div id="autoeval-estado" style="margin-top:10px;font-size:0.85rem;color:#16a34a;display:none;"></div>
+      </div>
+
       <div class="grid grid-3" id="grid-examenes-pub"></div>
       <div id="zona-resultados" style="margin-top:24px; display:none;">
         <hr style="margin:20px 0; border:1px solid #e3e6f6;">
@@ -943,6 +951,23 @@
         </div>
         <div id="clave-repetir-error" style="color:#dc2626;font-size:0.9rem;margin-top:8px;"></div>
         <button class="btn btn-primary" style="margin-top:12px;" onclick="validarClaveRepetir()">Verificar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Autoevaluación -->
+  <div class="modal" id="modal-autoevaluacion">
+    <div class="modal-content wide">
+      <div class="modal-header">
+        <div><h3>📝 Autoevaluación</h3><p>Responde con sinceridad. No afecta tu nota.</p></div>
+        <button class="modal-close" onclick="closeModal('modal-autoevaluacion')">✕</button>
+      </div>
+      <div class="modal-body" id="autoevaluacion-body">
+        <!-- Aquí se renderizan las 10 preguntas dinámicamente -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('modal-autoevaluacion')">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarAutoevaluacion()"><i class="fa-solid fa-check"></i> Guardar respuestas</button>
       </div>
     </div>
   </div>
@@ -1133,6 +1158,18 @@
             { texto: 'Unir: 1) Auguste Comte, 2) Karl Marx, 3) Max Weber, 4) Émile Durkheim', tipo: 'matching', pares: [{izquierda:'Comte', derecha:'Positivismo'}, {izquierda:'Marx', derecha:'Materialismo Histórico'}, {izquierda:'Weber', derecha:'Acción Social'}, {izquierda:'Durkheim', derecha:'Hecho Social'}], explicacion: 'Asocia cada autor con su concepto central.' }
           ]
         }
+      ],
+      autoevaluacion: [
+        '¿Consideras que comprendes la diferencia entre el conocimiento científico y el conocimiento popular?',
+        '¿Te sientes capaz de identificar el objeto de estudio de la Sociología?',
+        '¿Reconoces el contexto histórico en el que surgió la Sociología como disciplina?',
+        '¿Puedes identificar los aportes principales de al menos tres autores clásicos vistos en el curso?',
+        '¿Comprendes las diferencias entre las principales corrientes sociológicas (positivismo, materialismo histórico, sociología comprensiva, etc.)?',
+        '¿Te sientes cómodo/a aplicando los tipos de acción social de Weber a casos de la vida real?',
+        '¿Consideras que dominas el vocabulario técnico propio de la disciplina?',
+        '¿Sientes que necesitas repasar algún módulo antes de presentar el examen final?',
+        '¿Consideras útil lo aprendido en este curso para tu formación profesional?',
+        '¿Te gustaría profundizar más en algún autor o corriente vista en el curso?'
       ]
     };
 
@@ -1903,6 +1940,87 @@
     }
 
     /* ============================================================
+       AUTOEVALUACIÓN (10 preguntas: Sí / No / Tal vez / Prefiero no responder)
+    ============================================================ */
+    const OPCIONES_AUTOEVAL = ['Sí', 'No', 'Tal vez', 'Prefiero no responder'];
+
+    function abrirAutoevaluacion() {
+      const guardadas = JSON.parse(localStorage.getItem('autoevaluacion_respuestas') || 'null');
+      const respuestasPrevias = (guardadas && guardadas.respuestas) ? guardadas.respuestas : {};
+      let html = '';
+      DATA.autoevaluacion.forEach(function (pregunta, idx) {
+        html += '<div style="margin-bottom:18px;padding:14px;background:#f8f9ff;border:1px solid #e3e6f6;border-radius:10px;">';
+        html += '<p style="font-weight:600;margin-bottom:10px;">' + (idx + 1) + '. ' + pregunta + '</p>';
+        html += '<div style="display:flex;gap:14px;flex-wrap:wrap;">';
+        OPCIONES_AUTOEVAL.forEach(function (opcion) {
+          const checked = respuestasPrevias[idx] === opcion ? 'checked' : '';
+          html += '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.9rem;">';
+          html += '<input type="radio" name="autoeval-' + idx + '" value="' + opcion + '" ' + checked + '> ' + opcion;
+          html += '</label>';
+        });
+        html += '</div></div>';
+      });
+      document.getElementById('autoevaluacion-body').innerHTML = html;
+      openModal('modal-autoevaluacion');
+    }
+
+    function guardarAutoevaluacion() {
+      const respuestas = {};
+      let faltantes = 0;
+      DATA.autoevaluacion.forEach(function (pregunta, idx) {
+        const seleccionado = document.querySelector('input[name="autoeval-' + idx + '"]:checked');
+        if (seleccionado) {
+          respuestas[idx] = seleccionado.value;
+        } else {
+          faltantes++;
+        }
+      });
+      if (faltantes > 0) {
+        alert('Por favor responde todas las preguntas antes de guardar (' + faltantes + ' pendiente(s)).');
+        return;
+      }
+      const nombreGuardado = localStorage.getItem('estudiante_nombre') || '';
+      const registro = {
+        estudiante: nombreGuardado,
+        fecha: new Date().toLocaleDateString(),
+        respuestas: respuestas
+      };
+      localStorage.setItem('autoevaluacion_respuestas', JSON.stringify(registro));
+      closeModal('modal-autoevaluacion');
+      actualizarEstadoAutoevaluacion();
+      alert('¡Gracias! Tu autoevaluación ha sido guardada.');
+    }
+
+    function actualizarEstadoAutoevaluacion() {
+      const estadoDiv = document.getElementById('autoeval-estado');
+      const botonTexto = document.getElementById('btn-autoeval-texto');
+      if (!estadoDiv) return;
+      const guardadas = JSON.parse(localStorage.getItem('autoevaluacion_respuestas') || 'null');
+      if (guardadas) {
+        estadoDiv.style.display = 'block';
+        estadoDiv.textContent = '✅ Autoevaluación completada el ' + guardadas.fecha + '. Puedes editarla si lo deseas.';
+        if (botonTexto) botonTexto.textContent = 'Editar autoevaluación';
+      } else {
+        estadoDiv.style.display = 'none';
+        if (botonTexto) botonTexto.textContent = 'Iniciar autoevaluación';
+      }
+    }
+
+    function generarAutoevaluacionHTML(autoeval) {
+      let html = '<div style="margin-top:25px;border-top:2px solid #e3e6f6;padding-top:15px;">';
+      html += '<h3 style="color:#1c21d1;text-align:center;">📝 Autoevaluación</h3>';
+      html += '<p style="text-align:center;color:#4b5170;font-size:0.85rem;margin-bottom:10px;">Respondida el ' + autoeval.fecha + '</p>';
+      html += '<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">';
+      html += '<thead><tr style="background:#1c21d1;color:#fff;"><th style="padding:6px;border:1px solid #333;">#</th><th style="padding:6px;border:1px solid #333;text-align:left;">Pregunta</th><th style="padding:6px;border:1px solid #333;">Respuesta</th></tr></thead><tbody>';
+      DATA.autoevaluacion.forEach(function (pregunta, idx) {
+        const respuesta = autoeval.respuestas[idx] || '—';
+        html += '<tr><td style="padding:6px;border:1px solid #333;text-align:center;">' + (idx + 1) + '</td><td style="padding:6px;border:1px solid #333;">' + pregunta + '</td><td style="padding:6px;border:1px solid #333;text-align:center;font-weight:600;">' + respuesta + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+      return html;
+    }
+
+    /* ============================================================
        RESUMEN Y CERTIFICADO (con PDF directo)
     ============================================================ */
     function mostrarResumen() {
@@ -1960,9 +2078,14 @@
           <p style="text-align:center;font-size:0.9rem;color:#4b5170;">Fecha de emisión: ${fecha}</p>
       `;
 
+      const autoevalGuardada = JSON.parse(localStorage.getItem('autoevaluacion_respuestas') || 'null');
+
       if (modalidad === 'normal') {
         contenido += generarTablaResumenHTML(resultados);
         contenido += `<p style="text-align:center;margin-top:15px;color:#4b5170;">Nota mínima aprobatoria: 6.0</p>`;
+        if (autoevalGuardada) {
+          contenido += generarAutoevaluacionHTML(autoevalGuardada);
+        }
       } else {
         resultados.forEach(function (r, idx) {
           contenido += `<div style="margin-top:25px;border-top:2px solid #e3e6f6;padding-top:15px;">`;
@@ -1988,6 +2111,9 @@
         contenido += `<div style="margin-top:30px;border-top:2px solid #1c21d1;padding-top:15px;">`;
         contenido += generarTablaResumenHTML(resultados);
         contenido += `</div>`;
+        if (autoevalGuardada) {
+          contenido += generarAutoevaluacionHTML(autoevalGuardada);
+        }
       }
 
       contenido += `
@@ -2192,6 +2318,7 @@
       initTimeline();
       mostrarVista('inicio');
       mostrarZonaResultados();
+      actualizarEstadoAutoevaluacion();
     });
 
     // Exponer funciones globales
@@ -2220,6 +2347,8 @@
     window.finalizarExamen = finalizarExamen;
     window.verDetalleRespuestas = verDetalleRespuestas;
     window.descargarPDFResultado = descargarPDFResultado;
+    window.abrirAutoevaluacion = abrirAutoevaluacion;
+    window.guardarAutoevaluacion = guardarAutoevaluacion;
   </script>
 </body>
 </html>
