@@ -2064,70 +2064,70 @@
       const estudiante = resultados[0].estudiante;
       const fecha = new Date().toLocaleDateString();
       const nombreSanitizado = estudiante.replace(/[^a-zA-Z0-9áéíóúñÑ ]/g, '').trim().replace(/\s+/g, '_');
+      const envolver = function (html) { return '<div style="font-family:\'Inter\',sans-serif;background:#fff;padding:0 30px;">' + html + '</div>'; };
 
-      // Construir contenido HTML para el PDF
-      let contenido = `
-        <div id="pdf-content" style="font-family:'Inter',sans-serif;background:#fff;padding:30px;max-width:100%;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:2px solid #1c21d1;padding-bottom:15px;">
-            <img src="logo-horizontal.png" alt="UGB" style="height:70px;object-fit:contain;" />
-            <img src="cda-ugb.png" alt="CdA" style="height:80px;object-fit:contain;" />
-          </div>
-          <h2 style="text-align:center;color:#1c21d1;margin:10px 0;">📜 Certificado de Notas</h2>
-          <p style="text-align:center;font-size:1.1rem;"><strong>Estudiante:</strong> ${estudiante}</p>
-          <p style="text-align:center;color:#4b5170;">Sociología UGB · Unidad 1</p>
-          <p style="text-align:center;font-size:0.9rem;color:#4b5170;">Fecha de emisión: ${fecha}</p>
-      `;
+      // Construir el contenido como una lista de BLOQUES independientes.
+      // Cada bloque se coloca completo en el PDF; si no cabe en la página
+      // actual, pasa entero a la siguiente en vez de cortarse a la mitad.
+      const bloques = [];
+
+      bloques.push(envolver(`
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:2px solid #1c21d1;padding-bottom:15px;padding-top:20px;">
+          <img src="logo-horizontal.png" alt="UGB" style="height:70px;object-fit:contain;" />
+          <img src="cda-ugb.png" alt="CdA" style="height:80px;object-fit:contain;" />
+        </div>
+        <h2 style="text-align:center;color:#1c21d1;margin:10px 0;">📜 Certificado de Notas</h2>
+        <p style="text-align:center;font-size:1.1rem;"><strong>Estudiante:</strong> ${estudiante}</p>
+        <p style="text-align:center;color:#4b5170;">Sociología UGB · Unidad 1</p>
+        <p style="text-align:center;font-size:0.9rem;color:#4b5170;">Fecha de emisión: ${fecha}</p>
+      `));
 
       const autoevalGuardada = JSON.parse(localStorage.getItem('autoevaluacion_respuestas') || 'null');
 
       if (modalidad === 'normal') {
-        contenido += generarTablaResumenHTML(resultados);
-        contenido += `<p style="text-align:center;margin-top:15px;color:#4b5170;">Nota mínima aprobatoria: 6.0</p>`;
+        bloques.push(envolver(generarTablaResumenHTML(resultados) + `<p style="text-align:center;margin-top:15px;color:#4b5170;">Nota mínima aprobatoria: 6.0</p>`));
         if (autoevalGuardada) {
-          contenido += generarAutoevaluacionHTML(autoevalGuardada);
+          bloques.push(envolver(generarAutoevaluacionHTML(autoevalGuardada)));
         }
       } else {
-        resultados.forEach(function (r, idx) {
-          contenido += `<div style="margin-top:25px;border-top:2px solid #e3e6f6;padding-top:15px;">`;
-          contenido += `<h3 style="color:#1c21d1;">${r.examen} (${r.tipo})</h3>`;
-          contenido += `<p><strong>Nota:</strong> ${r.nota.toFixed(1)} · <strong>Correctas:</strong> ${r.correctas}/${r.total} · <strong>Fecha:</strong> ${r.fecha} · <strong>Estado:</strong> ${r.aprobado ? '✅ Aprobado' : '❌ Reprobado'}</p>`;
+        resultados.forEach(function (r) {
+          const encabezadoExamen = `<h3 style="color:#1c21d1;border-top:2px solid #e3e6f6;padding-top:18px;margin-top:0;">${r.examen} (${r.tipo})</h3><p><strong>Nota:</strong> ${r.nota.toFixed(1)} · <strong>Correctas:</strong> ${r.correctas}/${r.total} · <strong>Fecha:</strong> ${r.fecha} · <strong>Estado:</strong> ${r.aprobado ? '✅ Aprobado' : '❌ Reprobado'}</p>`;
           if (r.detalle && r.detalle.length) {
-            contenido += `<div style="margin-top:10px;">`;
             r.detalle.forEach(function (d, i) {
-              const clase = d.esCorrecta ? 'correcta' : 'incorrecta';
-              contenido += `<div style="padding:6px 10px;margin-bottom:6px;border-left:4px solid ${d.esCorrecta ? '#16a34a' : '#dc2626'};background:${d.esCorrecta ? '#f0fdf4' : '#fef2f2'};border-radius:4px;">`;
-              contenido += `<strong>Pregunta ${i+1}:</strong> ${d.texto}<br>`;
-              contenido += `<span style="font-size:0.9rem;">Tu respuesta: <strong>${d.userResp}</strong></span>`;
-              if (!d.esCorrecta) {
-                contenido += `<br><span style="font-size:0.9rem;color:#16a34a;">Correcta: ${d.respuestaCorrecta}</span>`;
-              }
-              contenido += `<br><span style="font-size:0.85rem;color:#4b5170;">${d.explicacion}</span>`;
-              contenido += `</div>`;
+              // La primera pregunta de cada examen lleva pegado el encabezado del examen,
+              // así nunca queda un título solo al final de una página.
+              const prefijo = i === 0 ? encabezadoExamen : '';
+              bloques.push(envolver(`
+                ${prefijo}
+                <div style="padding:6px 10px;${i === 0 ? 'margin-top:10px;' : ''}border-left:4px solid ${d.esCorrecta ? '#16a34a' : '#dc2626'};background:${d.esCorrecta ? '#f0fdf4' : '#fef2f2'};border-radius:4px;">
+                  <strong>Pregunta ${i + 1}:</strong> ${d.texto}<br>
+                  <span style="font-size:0.9rem;">Tu respuesta: <strong>${d.userResp}</strong></span>
+                  ${!d.esCorrecta ? `<br><span style="font-size:0.9rem;color:#16a34a;">Correcta: ${d.respuestaCorrecta}</span>` : ''}
+                  <br><span style="font-size:0.85rem;color:#4b5170;">${d.explicacion}</span>
+                </div>
+              `));
             });
-            contenido += `</div>`;
+          } else {
+            bloques.push(envolver(encabezadoExamen));
           }
-          contenido += `</div>`;
         });
-        contenido += `<div style="margin-top:30px;border-top:2px solid #1c21d1;padding-top:15px;">`;
-        contenido += generarTablaResumenHTML(resultados);
-        contenido += `</div>`;
+        bloques.push(envolver(`<div style="border-top:2px solid #1c21d1;padding-top:15px;">${generarTablaResumenHTML(resultados)}</div>`));
         if (autoevalGuardada) {
-          contenido += generarAutoevaluacionHTML(autoevalGuardada);
+          bloques.push(envolver(generarAutoevaluacionHTML(autoevalGuardada)));
         }
       }
 
-      contenido += `
-          <div style="text-align:center;margin-top:30px;color:#4b5170;font-size:0.9rem;border-top:1px solid #e3e6f6;padding-top:15px;">
-            Universidad Gerardo Barrios · Ingeniería en Sistemas y Redes Informáticas · ${new Date().getFullYear()}
-          </div>
+      bloques.push(envolver(`
+        <div style="text-align:center;color:#4b5170;font-size:0.9rem;border-top:1px solid #e3e6f6;padding-top:15px;padding-bottom:20px;">
+          Universidad Gerardo Barrios · Ingeniería en Sistemas y Redes Informáticas · ${new Date().getFullYear()}
         </div>
-      `;
+      `));
 
-      // Generar PDF con jsPDF + html2canvas (helper robusto, con paginación)
+      // Generar PDF con jsPDF + html2canvas, paginando por bloques completos
       const nombreArchivo = 'Sociologia_UGB_' + (modalidad === 'normal' ? 'Certificado' : 'Completo') + '_' + nombreSanitizado + '.pdf';
       const btnesCert = document.querySelectorAll('.cert-options .btn');
       btnesCert.forEach(function (b) { b.disabled = true; b.style.opacity = '0.6'; });
-      generarPDFDesdeHTML(contenido, nombreArchivo).finally(function () {
+      generarPDFDesdeBloques(bloques, nombreArchivo).finally(function () {
         btnesCert.forEach(function (b) { b.disabled = false; b.style.opacity = '1'; });
       });
     }
@@ -2152,25 +2152,21 @@
       return Promise.all(promesas);
     }
 
-    function generarPDFDesdeHTML(contenidoHtml, nombreArchivo) {
+    // Renderiza un bloque HTML aislado a un canvas (para poder medir/colocar cada
+    // bloque como una unidad indivisible al armar el PDF).
+    function renderizarBloqueACanvas(bloqueHtml) {
       const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = contenidoHtml;
+      tempDiv.innerHTML = bloqueHtml;
       tempDiv.style.position = 'fixed';
       tempDiv.style.left = '-9999px';
       tempDiv.style.top = '0';
       tempDiv.style.width = '800px';
       tempDiv.style.background = '#fff';
-      // Blindar imágenes: si una falla (ej. logo faltante), se oculta en vez de romper la captura
       tempDiv.querySelectorAll('img').forEach(function (img) {
         img.setAttribute('crossorigin', 'anonymous');
         img.onerror = function () { this.style.display = 'none'; };
       });
       document.body.appendChild(tempDiv);
-
-      let removed = false;
-      function limpiar() {
-        if (!removed && tempDiv.parentNode) { document.body.removeChild(tempDiv); removed = true; }
-      }
 
       return esperarImagenes(tempDiv, 4000).then(function () {
         return html2canvas(tempDiv, {
@@ -2182,44 +2178,130 @@
           windowWidth: 800,
           backgroundColor: '#ffffff'
         });
-      }).then(function (canvas) {
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        const pdfWidth = 210;
-        const pageHeightMM = 297;
-        const imgHeightMM = (canvas.height * pdfWidth) / canvas.width;
+      }).finally(function () {
+        if (tempDiv.parentNode) document.body.removeChild(tempDiv);
+      });
+    }
 
-        if (imgHeightMM <= pageHeightMM) {
-          const imgData = canvas.toDataURL('image/jpeg', 0.92);
-          pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, imgHeightMM);
-        } else {
-          // Contenido más alto que una hoja: dividir en varias páginas
-          const pageHeightPx = Math.floor((pageHeightMM * canvas.width) / pdfWidth);
-          let renderedPx = 0;
-          let first = true;
-          while (renderedPx < canvas.height) {
-            const sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedPx);
-            const pageCanvas = document.createElement('canvas');
-            pageCanvas.width = canvas.width;
-            pageCanvas.height = sliceHeightPx;
-            const ctx = pageCanvas.getContext('2d');
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-            ctx.drawImage(canvas, 0, renderedPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
-            const sliceData = pageCanvas.toDataURL('image/jpeg', 0.92);
-            const sliceHeightMM = (sliceHeightPx * pdfWidth) / canvas.width;
-            if (!first) pdf.addPage();
-            pdf.addImage(sliceData, 'JPEG', 0, 0, pdfWidth, sliceHeightMM);
-            renderedPx += sliceHeightPx;
-            first = false;
-          }
+    // Busca, cerca del punto de corte "ideal", la fila de píxeles más cercana que
+    // esté casi en blanco, para no partir una línea de texto o un borde de tabla
+    // por la mitad. Solo se usa como último recurso, cuando un bloque no cabe
+    // completo en una sola página.
+    function filaCasiBlanca(ctx, anchoCanvas, y) {
+      const datos = ctx.getImageData(0, y, anchoCanvas, 1).data;
+      for (let x = 0; x < datos.length; x += 4) {
+        const r = datos[x], g = datos[x + 1], b = datos[x + 2], a = datos[x + 3];
+        if (a > 10 && (r < 245 || g < 245 || b < 245)) return false;
+      }
+      return true;
+    }
+
+    function encontrarCorteSeguro(canvas, yIdeal, ventanaPx) {
+      try {
+        const ctx = canvas.getContext('2d');
+        const minY = Math.max(1, yIdeal - ventanaPx);
+        const maxY = Math.min(canvas.height - 1, yIdeal + ventanaPx);
+        for (let d = 0; d <= ventanaPx; d++) {
+          const arriba = yIdeal - d;
+          const abajo = yIdeal + d;
+          if (arriba >= minY && filaCasiBlanca(ctx, canvas.width, arriba)) return arriba;
+          if (abajo <= maxY && filaCasiBlanca(ctx, canvas.width, abajo)) return abajo;
         }
-        pdf.save(nombreArchivo);
-        limpiar();
-        return true;
-      }).catch(function (err) {
+      } catch (e) { /* si falla la lectura de píxeles, se usa el corte ideal */ }
+      return yIdeal;
+    }
+
+    /* ============================================================
+       GENERADOR DE PDF POR BLOQUES
+       Cada elemento de "bloques" (un encabezado, una pregunta, una
+       tabla, etc.) se renderiza y se coloca como unidad completa:
+       - Si cabe en el espacio restante de la página actual, se coloca ahí.
+       - Si no cabe pero sí cabe entero en una página nueva, se pasa
+         de página en vez de cortarlo (esto es lo que evita que una
+         pregunta o una fila de tabla salga cortada a la mitad).
+       - Solo si un bloque es más alto que una página completa (caso
+         raro) se divide, y aun así se busca un corte en una zona en
+         blanco para no partir una línea de texto.
+    ============================================================ */
+    function generarPDFDesdeBloques(bloques, nombreArchivo) {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = 210;
+      const pageHeightMM = 297;
+      const margin = 12; // margen uniforme en los 4 lados (mm)
+      const contentWidthMM = pdfWidth - (margin * 2);
+      const contentHeightMM = pageHeightMM - (margin * 2);
+      const gapMM = 4; // separación vertical entre bloques consecutivos en la misma página
+
+      let cursorY = margin;
+      let esPrimeraColocacion = true;
+
+      function colocarCanvasCompleto(canvas, imgHeightMM) {
+        // Si ya hay algo en la página y el bloque no cabe en lo que resta, saltar de página
+        if (!esPrimeraColocacion && (cursorY + imgHeightMM) > (margin + contentHeightMM)) {
+          pdf.addPage();
+          cursorY = margin;
+        }
+        const imgData = canvas.toDataURL('image/jpeg', 0.92);
+        pdf.addImage(imgData, 'JPEG', margin, cursorY, contentWidthMM, imgHeightMM);
+        cursorY += imgHeightMM + gapMM;
+        esPrimeraColocacion = false;
+      }
+
+      function colocarCanvasDividido(canvas) {
+        // El bloque es más alto que una página completa: siempre arranca en página nueva
+        if (!esPrimeraColocacion) {
+          pdf.addPage();
+          cursorY = margin;
+        }
+        const pageHeightPx = Math.floor((contentHeightMM * canvas.width) / contentWidthMM);
+        let renderedPx = 0;
+        let primeraFranja = true;
+        while (renderedPx < canvas.height) {
+          let sliceHeightPx = Math.min(pageHeightPx, canvas.height - renderedPx);
+          if (renderedPx + sliceHeightPx < canvas.height) {
+            // No es la última franja: buscar un corte en una zona en blanco cercana
+            const yIdeal = renderedPx + sliceHeightPx;
+            const ySeguro = encontrarCorteSeguro(canvas, yIdeal, Math.min(80, Math.floor(pageHeightPx * 0.15)));
+            sliceHeightPx = ySeguro - renderedPx;
+          }
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = sliceHeightPx;
+          const ctx = pageCanvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+          ctx.drawImage(canvas, 0, renderedPx, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+          const sliceData = pageCanvas.toDataURL('image/jpeg', 0.92);
+          const sliceHeightMM = (sliceHeightPx * contentWidthMM) / canvas.width;
+          if (!primeraFranja) { pdf.addPage(); cursorY = margin; }
+          pdf.addImage(sliceData, 'JPEG', margin, cursorY, contentWidthMM, sliceHeightMM);
+          cursorY += sliceHeightMM;
+          renderedPx += sliceHeightPx;
+          primeraFranja = false;
+        }
+        cursorY += gapMM;
+        esPrimeraColocacion = false;
+      }
+
+      function procesar(idx) {
+        if (idx >= bloques.length) {
+          pdf.save(nombreArchivo);
+          return true;
+        }
+        return renderizarBloqueACanvas(bloques[idx]).then(function (canvas) {
+          const imgHeightMM = (canvas.height * contentWidthMM) / canvas.width;
+          if (imgHeightMM <= contentHeightMM) {
+            colocarCanvasCompleto(canvas, imgHeightMM);
+          } else {
+            colocarCanvasDividido(canvas);
+          }
+          return procesar(idx + 1);
+        });
+      }
+
+      return procesar(0).catch(function (err) {
         console.error('Error generando PDF:', err);
-        limpiar();
         alert('No se pudo generar el PDF (' + (err && err.message ? err.message : 'error desconocido') + '). Inténtalo de nuevo; si el problema persiste, recarga la página.');
         throw err;
       });
@@ -2247,49 +2329,53 @@
       const estudiante = ultimo.estudiante;
       const nombreSanitizado = estudiante.replace(/[^a-zA-Z0-9áéíóúñÑ ]/g, '').trim().replace(/\s+/g, '_');
       const nombreArchivo = 'Sociologia_UGB_Resultado_' + nombreSanitizado + '.pdf';
+      const envolver = function (html) { return '<div style="font-family:\'Inter\',sans-serif;background:#fff;padding:0 30px;">' + html + '</div>'; };
 
-      // Construir contenido para el PDF del resultado individual
-      let contenido = `
-        <div id="pdf-resultado" style="font-family:'Inter',sans-serif;background:#fff;padding:30px;max-width:100%;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:2px solid #1c21d1;padding-bottom:15px;">
-            <img src="logo-horizontal.png" alt="UGB" style="height:70px;object-fit:contain;" />
-            <img src="cda-ugb.png" alt="CdA" style="height:80px;object-fit:contain;" />
-          </div>
-          <h2 style="text-align:center;color:#1c21d1;margin:10px 0;">📄 Resultado de Examen</h2>
-          <p style="text-align:center;font-size:1.1rem;"><strong>Estudiante:</strong> ${ultimo.estudiante}</p>
-          <p style="text-align:center;color:#4b5170;">${ultimo.examen} · ${ultimo.tipo}</p>
-          <p style="text-align:center;font-size:0.9rem;color:#4b5170;">Fecha: ${ultimo.fecha}</p>
-          <div style="text-align:center;margin:15px 0;">
-            <span style="font-size:2.5rem;font-weight:800;color:${ultimo.aprobado ? '#16a34a' : '#dc2626'};">${ultimo.nota.toFixed(1)} / 10</span>
-            <p style="font-weight:700;">${ultimo.correctas} de ${ultimo.total} correctas · ${ultimo.aprobado ? '✅ APROBADO' : '❌ REPROBADO'}</p>
-          </div>
-      `;
+      // Construir el contenido como una lista de BLOQUES independientes, para que
+      // ninguna pregunta ni fila quede cortada entre dos páginas del PDF.
+      const bloques = [];
+
+      bloques.push(envolver(`
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:2px solid #1c21d1;padding-bottom:15px;padding-top:20px;">
+          <img src="logo-horizontal.png" alt="UGB" style="height:70px;object-fit:contain;" />
+          <img src="cda-ugb.png" alt="CdA" style="height:80px;object-fit:contain;" />
+        </div>
+        <h2 style="text-align:center;color:#1c21d1;margin:10px 0;">📄 Resultado de Examen</h2>
+        <p style="text-align:center;font-size:1.1rem;"><strong>Estudiante:</strong> ${ultimo.estudiante}</p>
+        <p style="text-align:center;color:#4b5170;">${ultimo.examen} · ${ultimo.tipo}</p>
+        <p style="text-align:center;font-size:0.9rem;color:#4b5170;">Fecha: ${ultimo.fecha}</p>
+        <div style="text-align:center;margin:15px 0;">
+          <span style="font-size:2.5rem;font-weight:800;color:${ultimo.aprobado ? '#16a34a' : '#dc2626'};">${ultimo.nota.toFixed(1)} / 10</span>
+          <p style="font-weight:700;">${ultimo.correctas} de ${ultimo.total} correctas · ${ultimo.aprobado ? '✅ APROBADO' : '❌ REPROBADO'}</p>
+        </div>
+      `));
 
       if (ultimo.detalle && ultimo.detalle.length) {
-        contenido += `<h3 style="margin:20px 0 10px;">Detalle de preguntas</h3>`;
         ultimo.detalle.forEach(function (d, i) {
-          const clase = d.esCorrecta ? 'correcta' : 'incorrecta';
-          contenido += `<div style="padding:6px 10px;margin-bottom:6px;border-left:4px solid ${d.esCorrecta ? '#16a34a' : '#dc2626'};background:${d.esCorrecta ? '#f0fdf4' : '#fef2f2'};border-radius:4px;">`;
-          contenido += `<strong>Pregunta ${i+1}:</strong> ${d.texto}<br>`;
-          contenido += `<span style="font-size:0.9rem;">Tu respuesta: <strong>${d.userResp}</strong></span>`;
-          if (!d.esCorrecta) {
-            contenido += `<br><span style="font-size:0.9rem;color:#16a34a;">Correcta: ${d.respuestaCorrecta}</span>`;
-          }
-          contenido += `<br><span style="font-size:0.85rem;color:#4b5170;">${d.explicacion}</span>`;
-          contenido += `</div>`;
+          // "Detalle de preguntas" viaja pegado a la primera pregunta para que
+          // el título nunca quede solo al final de una página.
+          const prefijo = i === 0 ? `<h3 style="margin:20px 0 10px;">Detalle de preguntas</h3>` : '';
+          bloques.push(envolver(`
+            ${prefijo}
+            <div style="padding:6px 10px;border-left:4px solid ${d.esCorrecta ? '#16a34a' : '#dc2626'};background:${d.esCorrecta ? '#f0fdf4' : '#fef2f2'};border-radius:4px;">
+              <strong>Pregunta ${i + 1}:</strong> ${d.texto}<br>
+              <span style="font-size:0.9rem;">Tu respuesta: <strong>${d.userResp}</strong></span>
+              ${!d.esCorrecta ? `<br><span style="font-size:0.9rem;color:#16a34a;">Correcta: ${d.respuestaCorrecta}</span>` : ''}
+              <br><span style="font-size:0.85rem;color:#4b5170;">${d.explicacion}</span>
+            </div>
+          `));
         });
       }
 
-      contenido += `
-          <div style="text-align:center;margin-top:30px;color:#4b5170;font-size:0.9rem;border-top:1px solid #e3e6f6;padding-top:15px;">
-            Universidad Gerardo Barrios · Ingeniería en Sistemas y Redes Informáticas · ${new Date().getFullYear()}
-          </div>
+      bloques.push(envolver(`
+        <div style="text-align:center;color:#4b5170;font-size:0.9rem;border-top:1px solid #e3e6f6;padding-top:15px;padding-bottom:20px;">
+          Universidad Gerardo Barrios · Ingeniería en Sistemas y Redes Informáticas · ${new Date().getFullYear()}
         </div>
-      `;
+      `));
 
       const btnDescarga = document.querySelectorAll('[onclick="descargarPDFResultado()"]');
       btnDescarga.forEach(function (b) { b.disabled = true; b.style.opacity = '0.6'; });
-      generarPDFDesdeHTML(contenido, nombreArchivo).finally(function () {
+      generarPDFDesdeBloques(bloques, nombreArchivo).finally(function () {
         btnDescarga.forEach(function (b) { b.disabled = false; b.style.opacity = '1'; });
       });
     }
